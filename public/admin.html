@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gateway Admin | UPI Payment Verification</title>
+    <meta name="description" content="Configure the target payment app, UPI VPA, secret token and notification template for the self-hosted UPI gateway." />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>Gateway Admin</h1>
+        <p>Configure the listener, UPI details and notification parsing template.</p>
+      </header>
+
+      <section class="card">
+        <h2>Configuration</h2>
+        <div class="field">
+          <label for="target_package">Target Payment App</label>
+          <select id="target_package">
+            <option value="">Loading apps…</option>
+          </select>
+          <div class="hint">Apps appear here after the Android companion posts to <code>/api/admin/sync-apps</code>.</div>
+        </div>
+        <div class="field">
+          <label for="upi_vpa">UPI VPA</label>
+          <input id="upi_vpa" placeholder="yourname@okhdfcbank" />
+        </div>
+        <div class="field">
+          <label for="secret_token">Secret Token</label>
+          <input id="secret_token" placeholder="Shared x-gateway-secret header value" />
+        </div>
+        <div class="field">
+          <label for="template">Message Template</label>
+          <textarea id="template" placeholder="You have received Rs.{amount} from {name}. UPI Ref no {txid}"></textarea>
+          <div class="hint">Use <code>{amount}</code>, <code>{name}</code> and <code>{txid}</code> placeholders.</div>
+        </div>
+        <button id="save">Save settings</button>
+        <div class="status" id="save-status"></div>
+      </section>
+
+      <section class="card">
+        <h2>Regex Testing Sandbox</h2>
+        <div class="field">
+          <label for="sample">Raw notification text</label>
+          <textarea id="sample" placeholder="You have received Rs.499.00 from Kathleen. UPI Ref no 412398765432"></textarea>
+        </div>
+        <div class="kv" id="sandbox-out">
+          <div class="k">amount</div><div class="v" id="out-amount">—</div>
+          <div class="k">name</div><div class="v" id="out-name">—</div>
+          <div class="k">txid</div><div class="v" id="out-txid">—</div>
+          <div class="k">regex</div><div class="v" id="out-regex">—</div>
+        </div>
+        <div class="status" id="sandbox-status"></div>
+      </section>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      let settings = {};
+
+      async function boot() {
+        const [s, a] = await Promise.all([
+          fetch("/api/admin/settings").then((r) => r.json()),
+          fetch("/api/admin/installed-apps").then((r) => r.json()),
+        ]);
+        settings = s;
+        const sel = $("target_package");
+        const apps = a.apps || [];
+        sel.innerHTML = apps.length
+          ? '<option value="">— Select an app —</option>'
+          : '<option value="">No apps synced yet</option>';
+        apps.forEach((app) => {
+          const o = document.createElement("option");
+          o.value = app.package;
+          o.textContent = app.name + " (" + app.package + ")";
+          sel.appendChild(o);
+        });
+        if (s.target_package && !apps.some((x) => x.package === s.target_package)) {
+          const o = document.createElement("option");
+          o.value = s.target_package;
+          o.textContent = s.target_package + " (saved)";
+          sel.appendChild(o);
+        }
+        sel.value = s.target_package || "";
+        $("upi_vpa").value = s.upi_vpa || "";
+        $("secret_token").value = s.secret_token || "";
+        $("template").value = s.template || "";
+        runSandbox();
+      }
+
+      $("save").addEventListener("click", async () => {
+        const btn = $("save");
+        const st = $("save-status");
+        btn.disabled = true;
+        st.className = "status";
+        st.textContent = "Saving…";
+        try {
+          const res = await fetch("/api/admin/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              target_package: $("target_package").value,
+              upi_vpa: $("upi_vpa").value,
+              secret_token: $("secret_token").value,
+              template: $("template").value,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Save failed");
+          st.className = "status ok";
+          st.textContent = "Settings saved.";
+        } catch (e) {
+          st.className = "status err";
+          st.textContent = e.message;
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      let timer;
+      function debounceSandbox() {
+        clearTimeout(timer);
+        timer = setTimeout(runSandbox, 250);
+      }
+
+      async function runSandbox() {
+        const template = $("template").value;
+        const sample_text = $("sample").value;
+        const st = $("sandbox-status");
+        if (!template.trim() || !sample_text.trim()) {
+          ["amount", "name", "txid", "regex"].forEach((k) => ($("out-" + k).textContent = "—"));
+          st.textContent = "";
+          return;
+        }
+        const res = await fetch("/api/admin/test-template", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ template, sample_text }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          st.className = "status err";
+          st.textContent = data.error;
+          return;
+        }
+        $("out-regex").textContent = data.regex;
+        if (data.matched) {
+          st.className = "status ok";
+          st.textContent = "Template matched.";
+          $("out-amount").textContent = data.fields.amount ?? "—";
+          $("out-name").textContent = data.fields.name ?? "—";
+          $("out-txid").textContent = data.fields.txid ?? "—";
+        } else {
+          st.className = "status err";
+          st.textContent = "No match for this sample text.";
+          ["amount", "name", "txid"].forEach((k) => ($("out-" + k).textContent = "—"));
+        }
+      }
+
+      $("template").addEventListener("input", debounceSandbox);
+      $("sample").addEventListener("input", debounceSandbox);
+      boot();
+    </script>
+  </body>
+</html>

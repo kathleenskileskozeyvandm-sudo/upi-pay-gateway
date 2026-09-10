@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Secure UPI Checkout | Pay by QR</title>
+    <meta name="description" content="Enter your details, scan the UPI QR code and your payment is verified automatically in seconds." />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="wrap narrow">
+      <header>
+        <h1>Checkout</h1>
+        <p>Pay securely over UPI. Verification is automatic.</p>
+      </header>
+
+      <section class="card" id="form-card">
+        <h2>Your details</h2>
+        <div class="field">
+          <label for="name">Full name</label>
+          <input id="name" maxlength="100" placeholder="Kathleen R" />
+        </div>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" type="email" maxlength="255" placeholder="you@example.com" />
+        </div>
+        <div class="field">
+          <label for="amount">Amount (INR)</label>
+          <input id="amount" type="number" min="1" step="0.01" placeholder="499.00" />
+        </div>
+        <button class="block" id="pay">Generate QR code</button>
+        <div class="status err" id="form-status"></div>
+      </section>
+
+      <section class="card qr-box" id="qr-card" hidden>
+        <h2>Scan to pay</h2>
+        <img id="qr" alt="UPI payment QR code" />
+        <p class="hint" id="qr-amount"></p>
+        <p><a id="upi-link" href="#">Open in a UPI app</a></p>
+        <p class="pill" id="order-pill"></p>
+        <div class="status" id="poll-status"><span class="spinner"></span>Waiting for payment…</div>
+      </section>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      let poller;
+
+      $("pay").addEventListener("click", async () => {
+        const st = $("form-status");
+        st.textContent = "";
+        const name = $("name").value.trim();
+        const email = $("email").value.trim();
+        const amount = Number($("amount").value);
+        if (!name) return (st.textContent = "Please enter your name.");
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return (st.textContent = "Please enter a valid email.");
+        if (!Number.isFinite(amount) || amount <= 0) return (st.textContent = "Please enter a valid amount.");
+
+        $("pay").disabled = true;
+        try {
+          const res = await fetch("/api/checkout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, email, amount }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Could not start checkout");
+
+          $("qr").src = data.qr_url;
+          $("upi-link").href = data.upi_url;
+          $("qr-amount").textContent = "Pay ₹" + Number(data.amount).toFixed(2);
+          $("order-pill").textContent = "Order " + data.order_id;
+          $("form-card").hidden = true;
+          $("qr-card").hidden = false;
+          startPolling(data.order_id);
+        } catch (e) {
+          st.textContent = e.message;
+          $("pay").disabled = false;
+        }
+      });
+
+      function startPolling(orderId) {
+        poller = setInterval(async () => {
+          try {
+            const res = await fetch("/api/status/" + orderId);
+            const data = await res.json();
+            if (data.status === "PAID") {
+              clearInterval(poller);
+              location.href = "/success.html?order_id=" + encodeURIComponent(orderId);
+            } else if (data.status === "FAILED" || data.status === "EXPIRED") {
+              clearInterval(poller);
+              location.href = "/failed.html?order_id=" + encodeURIComponent(orderId);
+            }
+          } catch (_) {
+            /* keep polling */
+          }
+        }, 3000);
+      }
+    </script>
+  </body>
+</html>
