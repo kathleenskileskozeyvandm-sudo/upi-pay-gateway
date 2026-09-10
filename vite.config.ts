@@ -6,10 +6,29 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
+// Mounts the Express UPI gateway (server.js) onto the dev server so the
+// vanilla pages in /public can call /api/* while previewing.
+const upiGatewayApi = {
+  name: "upi-gateway-api",
+  apply: "serve" as const,
+  async configureServer(server: { middlewares: { use: (fn: unknown) => void } }) {
+    process.env.UPI_GATEWAY_EMBEDDED = "1";
+    const mod = await import("./server.js");
+    const app = mod.default;
+    server.middlewares.use((req: any, res: any, next: any) => {
+      if (req.url && req.url.startsWith("/api/")) return app(req, res, next);
+      next();
+    });
+  },
+};
+
 export default defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
+  },
+  vite: {
+    plugins: [upiGatewayApi],
   },
 });
