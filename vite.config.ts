@@ -12,8 +12,8 @@ const upiGatewayApi = {
   name: "upi-gateway-api",
   apply: "serve" as const,
   async configureServer(server: { middlewares: { use: (fn: unknown) => void } }) {
-    process.env.UPI_GATEWAY_EMBEDDED = "1";
-    const mod = await import("./server.js");
+    process.env["UPI_GATEWAY_EMBEDDED"] = "1";
+    const mod: any = await import(/* @vite-ignore */ "./server.js");
     const app = mod.default;
     server.middlewares.use((req: any, res: any, next: any) => {
       if (req.url && req.url.startsWith("/api/")) return app(req, res, next);
