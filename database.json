@@ -1,10 +1,31 @@
 {
   "settings": {
-    "target_package": "",
-    "secret_token": "",
+    "target_package": "com.google.android.apps.nbu.paisa.user",
+    "secret_token": "s3cr3t",
     "template": "You have received Rs.{amount} from {name}. UPI Ref no {txid}",
-    "upi_vpa": ""
+    "upi_vpa": "demo@okaxis"
   },
-  "installed_apps": [],
-  "orders": []
+  "installed_apps": [
+    {
+      "name": "Google Pay",
+      "package": "com.google.android.apps.nbu.paisa.user"
+    },
+    {
+      "name": "PhonePe",
+      "package": "com.phonepe.app"
+    }
+  ],
+  "orders": [
+    {
+      "order_id": "ORDMTV2AGEE08F458",
+      "name": "Kathleen",
+      "email": "k@ex.com",
+      "amount": 499,
+      "status": "PAID",
+      "created_at": "2026-09-10T05:03:16.359Z",
+      "paid_at": "2026-09-10T05:03:16.431Z",
+      "txid": "412398765432",
+      "payer_name": "Kathleen R"
+    }
+  ]
 }
