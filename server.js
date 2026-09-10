@@ -4,10 +4,13 @@
  *
  * Run:  node server.js      (PORT env optional, default 3000)
  */
-const express = require("express");
-const fs = require("fs");
-const path = require("path");
-const crypto = require("crypto");
+import express from "express";
+import fs from "node:fs";
+import path from "node:path";
+import crypto from "node:crypto";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -242,6 +245,9 @@ app.get("/api/status/:order_id", (req, res) => {
   });
 });
 
-app.listen(PORT, () => console.log(`UPI gateway running on http://localhost:${PORT}`));
+if (process.env.UPI_GATEWAY_EMBEDDED !== "1") {
+  app.listen(PORT, () => console.log(`UPI gateway running on http://localhost:${PORT}`));
+}
 
-module.exports = { app, templateToRegex, extractFields };
+export { app, templateToRegex, extractFields };
+export default app;

@@ -1,0 +1,10 @@
+{
+  "settings": {
+    "target_package": "",
+    "secret_token": "",
+    "template": "You have received Rs.{amount} from {name}. UPI Ref no {txid}",
+    "upi_vpa": ""
+  },
+  "installed_apps": [],
+  "orders": []
+}
